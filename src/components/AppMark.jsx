@@ -1,0 +1,27 @@
+import { format } from 'date-fns'
+import { cn } from '../lib/cn.js'
+
+// Apple Calendar–style app tile (weekday + day). Used in the header; updates daily.
+export function AppMark({ className }) {
+  const now = new Date()
+  const weekday = format(now, 'EEE').toUpperCase()
+  const day = format(now, 'd')
+
+  return (
+    <div
+      className={cn(
+        'relative flex h-10 w-10 shrink-0 flex-col overflow-hidden rounded-[11px] bg-white text-center shadow-sm',
+        'ring-1 ring-black/[0.08] dark:bg-zinc-900 dark:ring-white/15',
+        className
+      )}
+      aria-hidden
+    >
+      <div className="flex h-[13px] items-center justify-center bg-brand-500/95">
+        <span className="text-[7px] font-bold leading-none tracking-[0.14em] text-white">{weekday}</span>
+      </div>
+      <div className="flex flex-1 items-center justify-center pb-0.5">
+        <span className="text-[17px] font-bold leading-none tracking-tight text-zinc-900 dark:text-zinc-50">{day}</span>
+      </div>
+    </div>
+  )
+}

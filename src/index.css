@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode (toggled by adding .dark to <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* System font first (real SF on Apple), Inter as the cross-platform stand-in. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Accent = Apple system red. Reused via the existing brand-* utilities. */
+  --color-brand-50: #fff1f0;
+  --color-brand-100: #ffdcd9;
+  --color-brand-200: #ffbdb8;
+  --color-brand-300: #ff9089;
+  --color-brand-400: #ff5c50;
+  --color-brand-500: #ff3b30;
+  --color-brand-600: #e62216;
+  --color-brand-700: #c01a10;
+  --color-brand-800: #9b1810;
+  --color-brand-900: #7f1813;
+
+  /* Apple-ish neutral backgrounds. */
+  --color-canvas: #f5f5f7;
+  --color-canvas-dark: #000000;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-[#f5f5f7] text-zinc-900 antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  html.dark body {
+    @apply bg-black text-zinc-100;
+  }
+
+  ::selection {
+    @apply bg-brand-500/25;
+  }
+
+  /* Subtle, theme-aware scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 120, 130, 0.3) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(120, 120, 130, 0.3);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+/* Dialog / panel entrance animations. */
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@utility animate-overlayShow {
+  animation: overlayShow 0.18s ease-out;
+}
+@utility animate-contentShow {
+  animation: contentShow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer utilities {
+  /* Clean Apple-style card/panel surface: flat, hairline border. */
+  .surface {
+    @apply bg-white border border-zinc-200/80 dark:bg-[#1c1c1e] dark:border-white/10;
+  }
+  /* Hairline separators like macOS lists. */
+  .hairline {
+    @apply border-zinc-200/80 dark:border-white/10;
+  }
+  .ring-focus {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f5f7] dark:focus-visible:ring-offset-black;
+  }
+}

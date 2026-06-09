@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output — Railway builds these during deploy
+dist/
+dev-dist/
+
+# Local environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Runtime data — sensitive or ephemeral
+server/.runtime.json
+server/reminders.json
+server/subscriptions.json
+server/gcal-tokens.json
+server/users.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
