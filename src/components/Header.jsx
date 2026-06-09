@@ -1,6 +1,7 @@
 import { CalendarDays, List, Clock, Sun, Moon, Bell, BellOff, BellRing, ChartNoAxesColumn, Settings } from 'lucide-react'
 import { AppMark } from './AppMark.jsx'
 import { IconButton } from './ui/IconButton.jsx'
+import { InstallButton } from './InstallButton.jsx'
 import { cn } from '../lib/cn.js'
 
 function StatusDot({ ok, label }) {
@@ -62,6 +63,7 @@ export function Header({ view, onView, theme, onToggleTheme, onOpenStats, onOpen
         <IconButton label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'} onClick={onToggleTheme}>
           {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
         </IconButton>
+        <InstallButton />
       </div>
     </header>
   )
