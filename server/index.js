@@ -21,6 +21,9 @@ const servePwa = fs.existsSync(path.join(DIST_DIR, 'index.html'))
 
 const app = express()
 
+// Trust Railway's reverse proxy so rate-limit and IP detection work correctly
+app.set('trust proxy', 1)
+
 app.use(helmet({
   contentSecurityPolicy: false, // relaxed for dev; tighten for prod
 }))
