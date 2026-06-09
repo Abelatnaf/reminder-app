@@ -8,11 +8,12 @@ export function CategoryFilter({ active, onChange }) {
     <div className="flex flex-wrap items-center gap-1.5">
       <button
         onClick={() => onChange(null)}
+        style={active === null ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
         className={cn(
-          'rounded-full px-3 py-1 text-xs font-medium transition-colors ring-focus',
+          'rounded-full px-3 py-1 text-xs font-medium transition-all ring-focus',
           active === null
-            ? 'bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900'
-            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/20'
+            ? 'glass-sheen text-white shadow-sm shadow-brand-600/30'
+            : 'glass-pill text-zinc-600 dark:text-zinc-300'
         )}
       >
         All
@@ -22,8 +23,8 @@ export function CategoryFilter({ active, onChange }) {
           key={key}
           onClick={() => onChange(active === key ? null : key)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ring-focus',
-            active === key ? cat.chip + ' ring-1' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-white/10 dark:text-zinc-300 dark:hover:bg-white/20'
+            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ring-focus',
+            active === key ? cat.chip + ' ring-1' : 'glass-pill text-zinc-600 dark:text-zinc-300'
           )}
         >
           <span className={cn('h-1.5 w-1.5 rounded-full', cat.dot)} />

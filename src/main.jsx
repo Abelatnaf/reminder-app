@@ -36,6 +36,19 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
-    <Toaster position="bottom-right" richColors closeButton theme="system" toastOptions={{ duration: 3000 }} />
+    <Toaster
+      position="bottom-right"
+      richColors
+      closeButton
+      theme="system"
+      toastOptions={{
+        duration: 3000,
+        style: {
+          backdropFilter: 'blur(24px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+          borderRadius: '14px',
+        },
+      }}
+    />
   </React.StrictMode>
 )

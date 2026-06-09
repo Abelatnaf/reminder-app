@@ -10,13 +10,15 @@ export function AppMark({ className }) {
   return (
     <div
       className={cn(
-        'relative flex h-10 w-10 shrink-0 flex-col overflow-hidden rounded-[11px] bg-white text-center shadow-sm',
-        'ring-1 ring-black/[0.08] dark:bg-zinc-900 dark:ring-white/15',
+        'glass-pill relative flex h-10 w-10 shrink-0 flex-col overflow-hidden rounded-[12px] text-center',
         className
       )}
       aria-hidden
     >
-      <div className="flex h-[13px] items-center justify-center bg-brand-500/95">
+      <div
+        className="flex h-[13px] items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, #c01a10 0%, #e62216 45%, #ff4b3a 100%)' }}
+      >
         <span className="text-[7px] font-bold leading-none tracking-[0.14em] text-white">{weekday}</span>
       </div>
       <div className="flex flex-1 items-center justify-center pb-0.5">

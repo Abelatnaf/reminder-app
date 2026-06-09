@@ -12,7 +12,7 @@ import { config, isAiConfigured, isNotionConfigured } from './config.js'
 import * as store from './reminders.js'
 import * as push from './push.js'
 import { startScheduler } from './scheduler.js'
-import { parseReminder, AIError } from './ai.js'
+import { parseReminder, executeAICommand, AIError } from './ai.js'
 import * as gcal from './googlecal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -127,6 +127,37 @@ app.post('/api/parse-reminder', parseLimiter, asyncHandler(async (req, res) => {
   res.json(parsed)
 }))
 
+app.post('/api/ai-command', parseLimiter, asyncHandler(async (req, res) => {
+  const userId = await getUid(req)
+  const { text, now, timezone } = req.body || {}
+  const reminders = store.list(userId)
+  const result = await executeAICommand({ text, reminders, now: now || new Date().toISOString(), timezone: timezone || 'UTC' })
+
+  const affected = []
+  for (const op of result.ops) {
+    if (!op.ids?.length) continue
+    for (const id of op.ids) {
+      try {
+        if (op.action === 'update' && op.patch) {
+          affected.push(await store.update(id, op.patch, userId))
+        } else if (op.action === 'done') {
+          affected.push(await store.act(id, 'done', {}, userId))
+        } else if (op.action === 'delete') {
+          await store.remove(id, userId)
+          affected.push({ id, deleted: true })
+        } else if (op.action === 'query') {
+          const found = store.list(userId).find((r) => r.id === id)
+          if (found) affected.push(found)
+        }
+      } catch (err) {
+        console.warn('[ai-command] op failed for id', id, ':', err.message)
+      }
+    }
+  }
+
+  res.json({ summary: result.summary, ops: result.ops, affected })
+}))
+
 // ── Google Calendar ───────────────────────────────────────────────────────────
 
 // Redirect to Google OAuth consent screen
@@ -179,6 +210,13 @@ app.delete('/api/gcal/disconnect', asyncHandler(async (req, res) => {
   res.json({ ok: true })
 }))
 
+app.put('/api/gcal/settings', asyncHandler(async (req, res) => {
+  const userId = await getUid(req)
+  const { pushEnabled } = req.body || {}
+  gcal.setPushEnabled(userId, !!pushEnabled)
+  res.json({ ok: true, pushEnabled: !!pushEnabled })
+}))
+
 // ── Push notifications ────────────────────────────────────────────────────────
 
 app.post('/api/push/subscribe', asyncHandler(async (req, res) => {
@@ -196,6 +234,63 @@ app.post('/api/push/unsubscribe', asyncHandler(async (req, res) => {
 
 app.post('/api/push/test', asyncHandler(async (req, res) => {
   res.json(await push.sendToUser(await getUid(req), { title: '✅ Test notification', body: 'Push is working.', tag: 'test', data: { url: '/' } }))
+}))
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+function escCsv(val) {
+  if (val == null) return ''
+  const s = String(val)
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+app.get('/api/export/csv', asyncHandler(async (req, res) => {
+  const userId = await getUid(req)
+  const reminders = store.list(userId)
+  const header = ['title', 'datetime', 'recurrence', 'priority', 'category', 'notes', 'location', 'done']
+  const rows = reminders.map((r) =>
+    [r.title, r.datetime || '', r.recurrence || '', r.priority || '', r.category || '', r.notes || '', r.location || '', r.done ? 'true' : 'false']
+      .map(escCsv).join(',')
+  )
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', 'attachment; filename="reminders.csv"')
+  res.send([header.join(','), ...rows].join('\n'))
+}))
+
+function toIcsDate(isoStr) {
+  const d = new Date(isoStr)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`
+}
+
+const RRULE_MAP = { daily: 'FREQ=DAILY', weekly: 'FREQ=WEEKLY', monthly: 'FREQ=MONTHLY' }
+
+app.get('/api/export/ics', asyncHandler(async (req, res) => {
+  const userId = await getUid(req)
+  const reminders = store.list(userId)
+  const dtstamp = toIcsDate(new Date().toISOString())
+  const events = reminders
+    .filter((r) => r.datetime)
+    .map((r) => {
+      const esc = (s) => (s || '').replace(/[\\,;]/g, '\\$&').replace(/\n/g, '\\n')
+      const lines = [
+        'BEGIN:VEVENT',
+        `UID:${r.id}@reminders`,
+        `DTSTAMP:${dtstamp}`,
+        `DTSTART:${toIcsDate(r.datetime)}`,
+        `SUMMARY:${esc(r.title)}`,
+      ]
+      if (r.notes) lines.push(`DESCRIPTION:${esc(r.notes)}`)
+      if (r.location) lines.push(`LOCATION:${esc(r.location)}`)
+      if (r.done) lines.push('STATUS:COMPLETED')
+      if (RRULE_MAP[r.recurrence]) lines.push(`RRULE:${RRULE_MAP[r.recurrence]}`)
+      lines.push('END:VEVENT')
+      return lines.join('\r\n')
+    })
+  const cal = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ReminderApp//EN', 'CALSCALE:GREGORIAN', ...events, 'END:VCALENDAR'].join('\r\n')
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8')
+  res.setHeader('Content-Disposition', 'attachment; filename="reminders.ics"')
+  res.send(cal)
 }))
 
 // ── PWA ───────────────────────────────────────────────────────────────────────

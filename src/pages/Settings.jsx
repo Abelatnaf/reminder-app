@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Bell, BellOff, LogOut, Trash2, Calendar, RefreshCw, Unlink, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Bell, BellOff, LogOut, Trash2, Calendar, RefreshCw, Unlink, CheckCircle2, AlertCircle, Download } from 'lucide-react'
 import { useSession, signOut } from '../lib/auth.js'
 import { usePush } from '../hooks/usePush.js'
 import { api } from '../lib/api.js'
@@ -13,7 +13,7 @@ export function Settings({ onBack }) {
   const [deleting, setDeleting] = useState(false)
 
   // Google Calendar state
-  const [gcal, setGcal] = useState({ configured: false, connected: false, email: null })
+  const [gcal, setGcal] = useState({ configured: false, connected: false, email: null, pushEnabled: false })
   const [gcalLoading, setGcalLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -101,7 +101,7 @@ export function Settings({ onBack }) {
       <h1 className="mb-8 text-2xl font-bold">Settings</h1>
 
       {/* Account */}
-      <section className="mb-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6">
+      <section className="surface mb-4 rounded-2xl p-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Account</h2>
         <div className="text-sm text-zinc-700 dark:text-zinc-300">{user?.email}</div>
         {user?.name && <div className="mt-0.5 text-xs text-zinc-400">{user.name}</div>}
@@ -111,7 +111,7 @@ export function Settings({ onBack }) {
       </section>
 
       {/* Notifications */}
-      <section className="mb-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6">
+      <section className="surface mb-4 rounded-2xl p-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Notifications</h2>
         <div className="flex items-center justify-between">
           <div>
@@ -120,10 +120,10 @@ export function Settings({ onBack }) {
           </div>
           <button
             onClick={toggleNotifications}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
+            className={`glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${
               push.subscribed
-                ? 'border-violet-300 text-violet-700 dark:border-violet-600 dark:text-violet-300'
-                : 'border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400'
+                ? 'text-violet-700 dark:text-violet-300'
+                : 'text-zinc-600 dark:text-zinc-400'
             }`}
           >
             {push.subscribed ? <><Bell className="h-4 w-4" /> On</> : <><BellOff className="h-4 w-4" /> Off</>}
@@ -132,11 +132,11 @@ export function Settings({ onBack }) {
       </section>
 
       {/* Google Calendar */}
-      <section className="mb-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6">
+      <section className="surface mb-4 rounded-2xl p-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Google Calendar</h2>
 
         {!gcal.configured && !gcalLoading && (
-          <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 p-3 text-sm text-zinc-500">
+          <div className="glass-pill flex items-start gap-2 rounded-xl p-3 text-sm text-zinc-500">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <span>
               Google Calendar is not configured. Add <code className="rounded bg-zinc-200 dark:bg-zinc-700 px-1 text-xs">GOOGLE_CLIENT_ID</code>{' '}
@@ -174,7 +174,7 @@ export function Settings({ onBack }) {
               <button
                 onClick={handleGcalSync}
                 disabled={syncing}
-                className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                className="glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-700 disabled:opacity-50 dark:text-zinc-300"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Syncing…' : 'Sync now'}
@@ -182,10 +182,34 @@ export function Settings({ onBack }) {
               <button
                 onClick={handleGcalDisconnect}
                 disabled={disconnecting}
-                className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                className="glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 disabled:opacity-50 dark:text-zinc-400"
               >
                 <Unlink className="h-4 w-4" />
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            </div>
+            <div className="glass-pill flex items-center justify-between rounded-xl px-3 py-2.5">
+              <div>
+                <div className="text-sm font-medium">Push new reminders to Google Calendar</div>
+                <div className="mt-0.5 text-xs text-zinc-400">Auto-add reminders with a date to your calendar</div>
+              </div>
+              <button
+                onClick={async () => {
+                  const next = !gcal.pushEnabled
+                  setGcal((g) => ({ ...g, pushEnabled: next }))
+                  try {
+                    await api.gcal.setSettings({ pushEnabled: next })
+                    toast.success(next ? 'New reminders will sync to Google Calendar' : 'Push sync disabled')
+                  } catch {
+                    setGcal((g) => ({ ...g, pushEnabled: !next }))
+                    toast.error('Could not update setting')
+                  }
+                }}
+                style={gcal.pushEnabled ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ring-focus ${gcal.pushEnabled ? '' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                role="switch" aria-checked={gcal.pushEnabled}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${gcal.pushEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
             <p className="text-xs text-zinc-400">
@@ -195,8 +219,28 @@ export function Settings({ onBack }) {
         )}
       </section>
 
+      {/* Export */}
+      <section className="surface mb-4 rounded-2xl p-6">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Export data</h2>
+        <p className="mb-4 text-xs text-zinc-400">Download all your reminders to use anywhere.</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => api.export.csv().catch(() => toast.error('Export failed'))}
+            className="glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            <Download className="h-4 w-4" /> CSV
+          </button>
+          <button
+            onClick={() => api.export.ics().catch(() => toast.error('Export failed'))}
+            className="glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400"
+          >
+            <Download className="h-4 w-4" /> iCal (.ics)
+          </button>
+        </div>
+      </section>
+
       {/* Danger zone */}
-      <section className="rounded-2xl border border-red-200 dark:border-red-900/40 p-6">
+      <section className="surface rounded-2xl p-6 ring-1 ring-red-200/60 dark:ring-red-900/40">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-red-500">Danger zone</h2>
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -214,7 +258,7 @@ export function Settings({ onBack }) {
             <div className="mt-0.5 text-xs text-zinc-400">Sign out of this browser</div>
           </div>
           <button onClick={handleSignOut}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800">
+            className="glass-pill flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
         </div>

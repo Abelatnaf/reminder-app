@@ -41,6 +41,43 @@ const PARSE_TOOL = {
   },
 }
 
+const COMMAND_TOOL = {
+  type: 'function',
+  function: {
+    name: 'execute_reminder_ops',
+    description: "Execute one or more operations on the user's reminders based on their natural-language command. For queries, list matching IDs in the query op without patching.",
+    parameters: {
+      type: 'object',
+      properties: {
+        ops: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['update', 'done', 'delete', 'query'] },
+              ids: { type: 'array', items: { type: 'string' }, description: 'IDs of reminders to affect.' },
+              patch: {
+                type: 'object',
+                description: 'Fields to set. Only for action=update.',
+                properties: {
+                  title: { type: 'string' },
+                  datetime: { type: 'string', description: 'ISO 8601 datetime in user timezone.' },
+                  priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+                  category: { type: 'string', enum: ['work', 'personal', 'health', 'finance', 'other'] },
+                  done: { type: 'boolean' },
+                },
+              },
+            },
+            required: ['action', 'ids'],
+          },
+        },
+        summary: { type: 'string', description: 'One-sentence human-readable summary of what was done.' },
+      },
+      required: ['ops', 'summary'],
+    },
+  },
+}
+
 // Call Groq and return the forced function's parsed arguments object.
 async function callGroqTool({ system, user, tool, maxTokens }) {
   let res
@@ -91,6 +128,32 @@ async function callGroqTool({ system, user, tool, maxTokens }) {
   } catch {
     throw new AIError('The AI returned malformed data. Please try again.', 502)
   }
+}
+
+export async function executeAICommand({ text, reminders, now, timezone }) {
+  if (!isAiConfigured()) throw new AIError('AI is not configured. Add GROQ_API_KEY to .env.', 503)
+  if (!text?.trim()) throw new AIError('Please enter a command.', 400)
+
+  const remindersList = (reminders || [])
+    .map((r) => `ID:${r.id} | "${r.title}" | due:${r.datetime || 'none'} | category:${r.category || 'none'} | priority:${r.priority} | done:${r.done}`)
+    .join('\n')
+
+  const system =
+    `You manage a list of personal reminders. Execute the user's command by calling execute_reminder_ops. ` +
+    `Current time: ${now}. Timezone: ${timezone}. ` +
+    `Match reminders by title keywords, category, date, or priority as the user describes. ` +
+    `For "move" commands: action=update with a new datetime. For "mark done": action=done. For "delete": action=delete. For queries ("show me..."): action=query with matching IDs, no patch. ` +
+    `Always provide a concise summary of what was done.\n\nCurrent reminders:\n${remindersList || '(none)'}`
+
+  const result = await callGroqTool({
+    system,
+    user: text.trim(),
+    tool: COMMAND_TOOL,
+    maxTokens: 1000,
+  })
+
+  if (!Array.isArray(result.ops)) throw new AIError('Unexpected AI response. Try rephrasing.', 502)
+  return result
 }
 
 export async function parseReminder({ text, now, timezone }) {

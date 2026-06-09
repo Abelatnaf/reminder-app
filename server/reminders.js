@@ -6,6 +6,7 @@ import { config, isNotionConfigured } from './config.js'
 import { nextOccurrence } from './recurrence.js'
 import * as engine from './engine.js'
 import * as notion from './notion.js'
+import * as gcal from './googlecal.js'
 import { endOfUserDay } from './time.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -107,16 +108,28 @@ export function patterns(userId = '__local__') {
 // ── mutations ──────────────────────────────────────────────────────────────
 export async function create(fields, userId = '__local__') {
   const clean = normalize(fields)
+  let created
   if (mode === 'notion') {
-    const created = await notion.createInNotion(config.notionDatabaseId, clean, userId)
+    created = await notion.createInNotion(config.notionDatabaseId, clean, userId)
     setCache(userId, [{ ...created, userId }, ...getCache(userId)])
-    await writeSnapshot()
-    return created
+  } else {
+    created = { id: randomUUID(), createdAt: new Date().toISOString(), userId, ...clean }
+    setCache(userId, [created, ...getCache(userId)])
   }
-  const local = { id: randomUUID(), createdAt: new Date().toISOString(), userId, ...clean }
-  setCache(userId, [local, ...getCache(userId)])
   await writeSnapshot()
-  return local
+
+  // Fire-and-forget: push to Google Calendar if connected and push is enabled
+  if (created.datetime && gcal.isConfigured() && gcal.isConnected(userId) && gcal.isPushEnabled(userId)) {
+    gcal.pushToGoogle(userId, created)
+      .then((eventId) => {
+        if (!eventId) return
+        const existing = getCache(userId).find((r) => r.id === created.id)
+        if (existing) writePatch(existing, { gcalEventId: eventId }, userId).catch(() => {})
+      })
+      .catch((err) => console.warn('[gcal push create]', err.message))
+  }
+
+  return created
 }
 
 export async function update(id, fields, userId = '__local__') {
@@ -129,7 +142,21 @@ export async function update(id, fields, userId = '__local__') {
     const next = nextOccurrence(existing, new Date())
     if (next) patch = { ...fields, done: false, datetime: next }
   }
-  return writePatch(existing, patch, userId)
+  const updated = await writePatch(existing, patch, userId)
+
+  // Fire-and-forget: sync update to Google Calendar if connected and push is enabled
+  if (updated.datetime && gcal.isConfigured() && gcal.isConnected(userId) && gcal.isPushEnabled(userId)) {
+    gcal.pushToGoogle(userId, updated)
+      .then((eventId) => {
+        // Only write back eventId if the reminder didn't have one yet (first push)
+        if (!eventId || updated.gcalEventId) return
+        const current = getCache(userId).find((r) => r.id === updated.id)
+        if (current) writePatch(current, { gcalEventId: eventId }, userId).catch(() => {})
+      })
+      .catch((err) => console.warn('[gcal push update]', err.message))
+  }
+
+  return updated
 }
 
 export async function remove(id, userId = '__local__') {
@@ -260,6 +287,7 @@ function normalize(fields = {}) {
     category,
     location: String(fields.location || ''),
     gcalEventId: fields.gcalEventId || null,
+    checklist: Array.isArray(fields.checklist) ? fields.checklist : [],
     dismissalEvents: Array.isArray(fields.dismissalEvents) ? fields.dismissalEvents.slice(-MAX_EVENTS) : [],
     rescheduledByEngine: Boolean(fields.rescheduledByEngine),
     rescheduleDate: fields.rescheduleDate || null,

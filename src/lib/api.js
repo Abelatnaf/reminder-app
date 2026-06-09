@@ -42,6 +42,17 @@ function localNow() {
   )
 }
 
+async function downloadFile(url, filename) {
+  const res = await fetch(url, { credentials: 'include' })
+  if (!res.ok) throw new Error(`Export failed (${res.status})`)
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 const clientContext = () => ({
   now: localNow(),
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -66,7 +77,8 @@ export const api = {
 
   suggestTime: (id) => request(`/api/reminders/${id}/suggest-time`),
   patterns:    ()   => request('/api/patterns'),
-  parse: (text)     => request('/api/parse-reminder', { method: 'POST', body: JSON.stringify({ text, ...clientContext() }) }),
+  parse:   (text) => request('/api/parse-reminder', { method: 'POST', body: JSON.stringify({ text, ...clientContext() }) }),
+  command: (text) => request('/api/ai-command',     { method: 'POST', body: JSON.stringify({ text, ...clientContext() }) }),
 
   // Web push
   push: {
@@ -76,11 +88,18 @@ export const api = {
     test:        ()    => request('/api/push/test', { method: 'POST' }),
   },
 
+  // Data export
+  export: {
+    csv: () => downloadFile('/api/export/csv', 'reminders.csv'),
+    ics: () => downloadFile('/api/export/ics', 'reminders.ics'),
+  },
+
   // Google Calendar integration
   gcal: {
-    status:     ()  => request('/api/gcal/status'),
-    sync:       ()  => request('/api/gcal/sync', { method: 'POST' }),
-    disconnect: ()  => request('/api/gcal/disconnect', { method: 'DELETE' }),
+    status:      ()     => request('/api/gcal/status'),
+    sync:        ()     => request('/api/gcal/sync', { method: 'POST' }),
+    disconnect:  ()     => request('/api/gcal/disconnect', { method: 'DELETE' }),
+    setSettings: (body) => request('/api/gcal/settings', { method: 'PUT', body: JSON.stringify(body) }),
     // "Connect" is a plain <a href="/api/gcal/auth"> — the browser follows the
     // server redirect to Google's consent page, no fetch needed.
     authUrl: '/api/gcal/auth',

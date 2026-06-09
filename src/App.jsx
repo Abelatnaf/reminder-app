@@ -16,6 +16,7 @@ import { ReminderInput } from './components/ReminderInput.jsx'
 import { ReminderList } from './components/ReminderList.jsx'
 import { CalendarMonth } from './components/CalendarMonth.jsx'
 import { CalendarDay } from './components/CalendarDay.jsx'
+import { TodayView } from './components/TodayView.jsx'
 import { CategoryFilter } from './components/CategoryFilter.jsx'
 import { ReminderFormModal } from './components/ReminderFormModal.jsx'
 import { HelpOverlay } from './components/HelpOverlay.jsx'
@@ -76,7 +77,7 @@ function AppShell() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { path, navigate } = useRoute()
 
-  const [view, setView] = useState('month')
+  const [view, setView] = useState('today')
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('active')
   const [sort, setSort] = useState('due')
@@ -310,6 +311,29 @@ function AppShell() {
     [health.aiConfigured, openCreate, create, remove]
   )
 
+  // ── AI command ────────────────────────────────────────────────────────────
+  const handleCommand = useCallback(
+    async (text, { onDone } = {}) => {
+      if (!health.aiConfigured) {
+        toast.error('AI is not configured — add GROQ_API_KEY to .env')
+        onDone?.()
+        return
+      }
+      setParsing(true)
+      try {
+        const result = await api.command(text)
+        onDone?.()
+        toast.success(result.summary || 'Done')
+        await reload()
+      } catch (err) {
+        toast.error(err.message || 'Command failed — try rephrasing')
+      } finally {
+        setParsing(false)
+      }
+    },
+    [health.aiConfigured, reload]
+  )
+
   // ── Notifications ─────────────────────────────────────────────────────────
   const toggleNotifications = useCallback(async () => {
     if (push.subscribed) {
@@ -371,10 +395,11 @@ function AppShell() {
       onLater: () => act(r, 'not_now'),
       onEdit: () => openEdit(r),
       onDelete: () => remove(r.id),
+      onUpdateChecklist: (checklist) => update(r.id, { checklist }),
       suggestion: timeSuggestions[r.id] || null,
       onReschedule: (s) => onReschedule(r, s),
     }),
-    [selectedId, toggle, act, openEdit, remove, timeSuggestions, onReschedule]
+    [selectedId, toggle, act, openEdit, remove, update, timeSuggestions, onReschedule]
   )
 
   // ── Route handling ────────────────────────────────────────────────────────
@@ -386,68 +411,76 @@ function AppShell() {
   const showBanner = !bannerHidden && (!health.aiConfigured || notionIssue)
 
   return (
-    <div className="mx-auto min-h-full w-full max-w-4xl px-4 pb-24 pt-6 sm:px-6 sm:pt-10">
-      <Header
-        view={view}
-        onView={setView}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onOpenStats={() => navigate('/stats')}
-        onOpenSettings={() => navigate('/settings')}
-        notif={{ supported: push.supported || push.needsInstall, permission: push.permission, enabled: push.subscribed, onToggle: toggleNotifications }}
-        health={health}
-      />
+    <div className="mx-auto min-h-full w-full max-w-4xl">
+      {/* ── Sticky liquid-glass header ── */}
+      <div className="glass-bar sticky top-0 z-40 -mx-4 px-4 pt-4 pb-3 sm:-mx-6 sm:px-6 sm:pt-6">
+        <Header
+          view={view}
+          onView={setView}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenStats={() => navigate('/stats')}
+          onOpenSettings={() => navigate('/settings')}
+          notif={{ supported: push.supported || push.needsInstall, permission: push.permission, enabled: push.subscribed, onToggle: toggleNotifications }}
+          health={health}
+        />
+        {/* subtle separator */}
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-zinc-200/60 to-transparent dark:via-white/8" />
+      </div>
 
-      {showBanner && (
-        <div className="mt-5 flex items-start gap-3 rounded-xl border border-brand-200/70 bg-brand-50/70 px-4 py-3 text-sm dark:border-brand-500/20 dark:bg-brand-500/10">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-          <p className="flex-1 text-brand-900/90 dark:text-brand-100/90">
-            {health.notionConfigured && health.mode !== 'notion' ? (
-              <>
-                Notion is configured but the server is in <strong>local</strong> mode (sync failed). Stop every{' '}
-                <code className="rounded bg-brand-100 px-1 dark:bg-brand-500/20">npm run dev</code> window, start it once, and refresh.
-              </>
-            ) : (
-              <>
-                Running in <strong>{health.mode === 'notion' ? 'Notion' : 'local'}</strong> mode.
-                {!health.notionConfigured && ' Add NOTION_TOKEN to sync with Notion.'}
-                {!health.aiConfigured && ' Add GROQ_API_KEY to enable AI parsing & suggestions.'}{' '}
-                See <code className="rounded bg-brand-100 px-1 dark:bg-brand-500/20">.env.example</code>, then restart.
-              </>
-            )}
-          </p>
-          <button onClick={() => setBannerHidden(true)} aria-label="Dismiss" className="rounded p-0.5 text-brand-500/70 hover:text-brand-700 dark:hover:text-brand-300">
-            <X className="h-4 w-4" />
-          </button>
+      <div className="px-4 pb-28 pt-5 sm:px-6">
+        {showBanner && (
+          <div className="glass-pill mb-5 flex items-start gap-3 rounded-2xl px-4 py-3 text-sm">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
+            <p className="flex-1 text-brand-900/90 dark:text-brand-100/90">
+              {health.notionConfigured && health.mode !== 'notion' ? (
+                <>
+                  Notion is configured but the server is in <strong>local</strong> mode (sync failed). Stop every{' '}
+                  <code className="rounded bg-brand-100 px-1 dark:bg-brand-500/20">npm run dev</code> window, start it once, and refresh.
+                </>
+              ) : (
+                <>
+                  Running in <strong>{health.mode === 'notion' ? 'Notion' : 'local'}</strong> mode.
+                  {!health.notionConfigured && ' Add NOTION_TOKEN to sync with Notion.'}
+                  {!health.aiConfigured && ' Add GROQ_API_KEY to enable AI parsing & suggestions.'}{' '}
+                  See <code className="rounded bg-brand-100 px-1 dark:bg-brand-500/20">.env.example</code>, then restart.
+                </>
+              )}
+            </p>
+            <button onClick={() => setBannerHidden(true)} aria-label="Dismiss" className="rounded p-0.5 text-brand-500/70 hover:text-brand-700 dark:hover:text-brand-300">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        <ReminderInput ref={inputRef} onParse={handleParse} onCommand={handleCommand} onManual={() => openCreate()} parsing={parsing} aiEnabled={health.aiConfigured} />
+
+        <div className="mt-4">
+          <CategoryFilter active={categoryFilter} onChange={setCategoryFilter} />
         </div>
-      )}
 
-      <div className="mt-6">
-        <ReminderInput ref={inputRef} onParse={handleParse} onManual={() => openCreate()} parsing={parsing} aiEnabled={health.aiConfigured} />
+        <main className="mt-6">
+          {view === 'today' && (
+            <TodayView reminders={calendarItems} cardProps={cardProps} />
+          )}
+          {view === 'month' && (
+            <CalendarMonth reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
+          )}
+          {view === 'day' && (
+            <CalendarDay reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
+          )}
+          {view === 'list' && (
+            <ReminderList
+              visible={listVisible}
+              loading={loading}
+              counts={counts}
+              filter={{ query, onQuery: setQuery, status, onStatus: setStatus, sort, onSort: setSort }}
+              isFiltered={Boolean(query.trim()) || status !== 'active' || Boolean(categoryFilter)}
+              cardProps={cardProps}
+            />
+          )}
+        </main>
       </div>
-
-      <div className="mt-6">
-        <CategoryFilter active={categoryFilter} onChange={setCategoryFilter} />
-      </div>
-
-      <main className="mt-6">
-        {view === 'month' && (
-          <CalendarMonth reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
-        )}
-        {view === 'day' && (
-          <CalendarDay reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
-        )}
-        {view === 'list' && (
-          <ReminderList
-            visible={listVisible}
-            loading={loading}
-            counts={counts}
-            filter={{ query, onQuery: setQuery, status, onStatus: setStatus, sort, onSort: setSort }}
-            isFiltered={Boolean(query.trim()) || status !== 'active' || Boolean(categoryFilter)}
-            cardProps={cardProps}
-          />
-        )}
-      </main>
 
       <ReminderFormModal open={formOpen} onOpenChange={setFormOpen} mode={formMode} initial={formInitial} onSubmit={handleFormSubmit} />
       <HelpOverlay open={helpOpen} onOpenChange={setHelpOpen} />

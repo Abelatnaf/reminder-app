@@ -67,7 +67,7 @@ export function Stats({ onBack }) {
       </div>
 
       {/* Kill-criterion explainer */}
-      <div className="mb-6 flex items-start gap-3 rounded-xl border border-brand-200/70 bg-brand-50/70 px-4 py-3 text-sm dark:border-brand-500/20 dark:bg-brand-500/10">
+      <div className="glass-pill mb-6 flex items-start gap-3 rounded-xl px-4 py-3 text-sm">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
         <p className="text-brand-900/90 dark:text-brand-100/90">
           <strong>The test:</strong> for reminders the engine rescheduled, the <em>after</em> completion rate should beat the <em>before</em> rate over ~14 days.{' '}

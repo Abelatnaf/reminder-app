@@ -1,15 +1,14 @@
 @import "tailwindcss";
 
-/* Enable class-based dark mode (toggled by adding .dark to <html>). */
+/* Enable class-based dark mode. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* System font first (real SF on Apple), Inter as the cross-platform stand-in. */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Accent = Apple system red. Reused via the existing brand-* utilities. */
-  --color-brand-50: #fff1f0;
+  /* Brand accent — Apple system red */
+  --color-brand-50:  #fff1f0;
   --color-brand-100: #ffdcd9;
   --color-brand-200: #ffbdb8;
   --color-brand-300: #ff9089;
@@ -20,9 +19,8 @@
   --color-brand-800: #9b1810;
   --color-brand-900: #7f1813;
 
-  /* Apple-ish neutral backgrounds. */
-  --color-canvas: #f5f5f7;
-  --color-canvas-dark: #000000;
+  --color-canvas:      #f0f0f2;
+  --color-canvas-dark: #070709;
 }
 
 @layer base {
@@ -31,31 +29,37 @@
   }
 
   body {
-    @apply bg-[#f5f5f7] text-zinc-900 antialiased;
+    @apply text-zinc-900 antialiased;
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    padding-left: env(safe-area-inset-left);
+    padding-left:  env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+
+    /* Ambient brand glow in top-right, soft warm tint bottom-left */
+    background-color: #f0f0f2;
+    background-image:
+      radial-gradient(ellipse 90% 55% at 75% -15%, rgba(255, 59, 48, 0.13) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 35% at -5%  80%, rgba(255,100, 60, 0.06) 0%, transparent 60%);
   }
 
   html.dark body {
-    @apply bg-black text-zinc-100;
+    @apply text-zinc-100;
+    background-color: #070709;
+    background-image:
+      radial-gradient(ellipse 100% 60% at 65% -25%, rgba(255, 59, 48, 0.22) 0%, transparent 65%),
+      radial-gradient(ellipse  70% 40% at -10% 90%, rgba(200, 30, 10, 0.10) 0%, transparent 55%);
   }
 
   ::selection {
     @apply bg-brand-500/25;
   }
 
-  /* Subtle, theme-aware scrollbars. */
   * {
     scrollbar-width: thin;
     scrollbar-color: rgba(120, 120, 130, 0.3) transparent;
   }
-  *::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
-  }
-  *::-webkit-scrollbar-thumb {
+  *::-webkit-scrollbar        { width: 9px; height: 9px; }
+  *::-webkit-scrollbar-thumb  {
     background-color: rgba(120, 120, 130, 0.3);
     border-radius: 9999px;
     border: 2px solid transparent;
@@ -63,42 +67,216 @@
   }
 }
 
-/* Dialog / panel entrance animations. */
+/* Dialog animations */
 @keyframes overlayShow {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes contentShow {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
 }
 @utility animate-overlayShow {
   animation: overlayShow 0.18s ease-out;
 }
 @utility animate-contentShow {
-  animation: contentShow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: contentShow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer utilities {
-  /* Clean Apple-style card/panel surface: flat, hairline border. */
+  /* ── Liquid Glass surface (Apple iOS 26 style) ───────────────────────────── */
   .surface {
-    @apply bg-white border border-zinc-200/80 dark:bg-[#1c1c1e] dark:border-white/10;
+    background: rgba(255, 255, 255, 0.48);
+    backdrop-filter: blur(48px) saturate(210%) brightness(1.06);
+    -webkit-backdrop-filter: blur(48px) saturate(210%) brightness(1.06);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.90),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      inset 1px 0 0 rgba(255, 255, 255, 0.30),
+      0 1px 2px  rgba(0, 0, 0, 0.04),
+      0 4px 16px rgba(0, 0, 0, 0.07),
+      0 16px 48px rgba(0, 0, 0, 0.05);
   }
-  /* Hairline separators like macOS lists. */
+  :where(.dark) .surface {
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
+    -webkit-backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.14),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+      inset 1px 0 0 rgba(255, 255, 255, 0.06),
+      0 1px 2px  rgba(0, 0, 0, 0.25),
+      0 4px 20px rgba(0, 0, 0, 0.35),
+      0 16px 48px rgba(0, 0, 0, 0.20);
+  }
+
+  /* ── Liquid Glass — elevated (modals, popovers) ──────────────────────────── */
+  .surface-modal {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(64px) saturate(220%) brightness(1.04);
+    -webkit-backdrop-filter: blur(64px) saturate(220%) brightness(1.04);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+      0 8px 32px  rgba(0, 0, 0, 0.10),
+      0 32px 80px rgba(0, 0, 0, 0.12);
+  }
+  :where(.dark) .surface-modal {
+    background: rgba(22, 22, 26, 0.78);
+    backdrop-filter: blur(64px) saturate(180%) brightness(0.88);
+    -webkit-backdrop-filter: blur(64px) saturate(180%) brightness(0.88);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.10),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.30),
+      0 8px 32px  rgba(0, 0, 0, 0.40),
+      0 32px 80px rgba(0, 0, 0, 0.30);
+  }
+
+  /* ── Glass bar (sticky header, floating toolbars) ────────────────────────── */
+  .glass-bar {
+    background: rgba(248, 248, 250, 0.60);
+    backdrop-filter: blur(32px) saturate(190%) brightness(1.05);
+    -webkit-backdrop-filter: blur(32px) saturate(190%) brightness(1.05);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  }
+  :where(.dark) .glass-bar {
+    background: rgba(12, 12, 14, 0.55);
+    backdrop-filter: blur(32px) saturate(170%) brightness(0.9);
+    -webkit-backdrop-filter: blur(32px) saturate(170%) brightness(0.9);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* ── Glass pill — chips, tags, small controls ────────────────────────────── */
+  .glass-pill {
+    background: rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.75),
+      0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .glass-pill:hover {
+    background: rgba(255, 255, 255, 0.62);
+  }
+  :where(.dark) .glass-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  :where(.dark) .glass-pill:hover {
+    background: rgba(255, 255, 255, 0.11);
+  }
+
+  /* ── Glass track — container for segmented controls ──────────────────────── */
+  .glass-track {
+    background: rgba(255, 255, 255, 0.30);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.60),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.03),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+  :where(.dark) .glass-track {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.15);
+  }
+
+  /* ── Glass input — text fields, textareas, selects ───────────────────────── */
+  .glass-input {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.50),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .glass-input:focus,
+  .glass-input:focus-within {
+    border-color: rgba(255, 59, 48, 0.45);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.50),
+      0 0 0 3px rgba(255, 59, 48, 0.15);
+    outline: none;
+  }
+  :where(.dark) .glass-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.06),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.15);
+  }
+  :where(.dark) .glass-input:focus,
+  :where(.dark) .glass-input:focus-within {
+    border-color: rgba(255, 59, 48, 0.50);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.06),
+      0 0 0 3px rgba(255, 59, 48, 0.20);
+  }
+
+  /* ── Liquid sheen — bright diagonal highlight overlay for active gradients ── */
+  /* ::before sits at z-index:-1 so it layers above the element's gradient
+     background but always *below* text/icon content (no contrast loss). */
+  .glass-sheen {
+    position: relative;
+    isolation: isolate;
+  }
+  .glass-sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.12) 40%, transparent 62%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ── Hairline border ─────────────────────────────────────────────────────── */
   .hairline {
-    @apply border-zinc-200/80 dark:border-white/10;
+    @apply border-zinc-200/70 dark:border-white/8;
   }
+
+  /* ── Focus ring ──────────────────────────────────────────────────────────── */
   .ring-focus {
-    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f5f7] dark:focus-visible:ring-offset-black;
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
+           focus-visible:ring-offset-2 focus-visible:ring-offset-transparent;
+  }
+
+  /* ── Gradient text utility ───────────────────────────────────────────────── */
+  .gradient-brand {
+    background: linear-gradient(135deg, #ff3b30 0%, #ff6b35 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Gradient brand fill (for non-text) ─────────────────────────────────── */
+  .bg-gradient-brand {
+    background: linear-gradient(135deg, #e62216 0%, #ff5533 100%);
+  }
+
+  /* ── Elevated card shadow ────────────────────────────────────────────────── */
+  .shadow-card {
+    box-shadow:
+      0 1px 3px  rgba(0, 0, 0, 0.05),
+      0 6px 20px rgba(0, 0, 0, 0.07);
+  }
+  .shadow-card-hover {
+    box-shadow:
+      0 2px 6px  rgba(0, 0, 0, 0.08),
+      0 12px 36px rgba(0, 0, 0, 0.12);
   }
 }

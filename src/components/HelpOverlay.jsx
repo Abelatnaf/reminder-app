@@ -4,7 +4,7 @@ import { SHORTCUTS } from '../hooks/useHotkeys.js'
 
 function Key({ children }) {
   return (
-    <kbd className="inline-grid min-w-6 place-items-center rounded-md border border-zinc-300 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+    <kbd className="glass-pill inline-grid min-w-6 place-items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
       {children}
     </kbd>
   )
@@ -16,7 +16,7 @@ export function HelpOverlay({ open, onOpenChange }) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-sm data-[state=open]:animate-overlayShow" />
-        <Dialog.Content className="surface fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 shadow-2xl data-[state=open]:animate-contentShow focus:outline-none" aria-describedby={undefined}>
+        <Dialog.Content className="surface-modal fixed left-1/2 top-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl p-6 data-[state=open]:animate-contentShow focus:outline-none" aria-describedby={undefined}>
           <div className="mb-4 flex items-center justify-between">
             <Dialog.Title className="flex items-center gap-2 text-base font-semibold">
               <Keyboard className="h-5 w-5 text-brand-500" /> Keyboard shortcuts

@@ -107,12 +107,7 @@ export function CalendarDay({ reminders, onQuickAdd, cardProps }) {
                         <button
                           key={r.id}
                           onClick={() => cardProps(r).onEdit()}
-                          className={cn(
-                            'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors',
-                            cat ? `border-l-4` : 'border-l-4',
-                            'bg-zinc-50 hover:bg-zinc-100 dark:bg-white/5 dark:hover:bg-white/10'
-                          )}
-                          style={{ borderLeftColor: cat ? undefined : p.strip.replace('bg-', '') }}
+                          className="glass-pill flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-all"
                         >
                           {/* Category / priority color strip */}
                           <span className={cn('h-3 w-1 shrink-0 rounded-full', cat ? cat.strip : p.strip)} />
@@ -149,7 +144,8 @@ export function CalendarDay({ reminders, onQuickAdd, cardProps }) {
           <p className="text-sm">Nothing scheduled for this day.</p>
           <button
             onClick={() => onQuickAdd(day)}
-            className="mt-1 inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+            style={{ background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' }}
+            className="glass-sheen mt-1 inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-white shadow-sm shadow-brand-600/30"
           >
             <Plus className="h-4 w-4" /> Add reminder
           </button>

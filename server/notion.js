@@ -9,6 +9,7 @@ function client() {
 
 const DB_TITLE = 'Reminders'
 const DISMISSAL_PROP = 'Dismissal Events'
+const CHECKLIST_PROP = 'Checklist'
 
 const RECURRENCE_LABELS = { none: 'None', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', custom: 'Custom' }
 const PRIORITY_LABELS   = { low: 'Low', medium: 'Medium', high: 'High' }
@@ -45,6 +46,7 @@ const SCHEMA = {
   Location: { rich_text: {} },
   'User ID': { rich_text: {} },
   [DISMISSAL_PROP]: { rich_text: {} },
+  [CHECKLIST_PROP]: { rich_text: {} },
 }
 
 // Ensure the database exists; migrate existing DBs to add new properties.
@@ -56,6 +58,7 @@ export async function ensureDatabase() {
       const db = await client().databases.retrieve({ database_id: config.notionDatabaseId })
       const missing = {}
       if (!db.properties?.[DISMISSAL_PROP]) missing[DISMISSAL_PROP] = { rich_text: {} }
+      if (!db.properties?.[CHECKLIST_PROP]) missing[CHECKLIST_PROP] = { rich_text: {} }
       if (!db.properties?.['Category'])      missing['Category'] = SCHEMA['Category']
       if (!db.properties?.['Location'])      missing['Location'] = { rich_text: {} }
       if (!db.properties?.['User ID'])       missing['User ID']  = { rich_text: {} }
@@ -115,6 +118,12 @@ export function pageToReminder(page) {
     rescheduledByEngine:  Boolean(engineData.rescheduled_by_engine),
     rescheduleDate:       engineData.reschedule_date || null,
     hiddenUntil:          engineData.hidden_until    || null,
+    checklist:            (() => {
+      try {
+        const raw = (p[CHECKLIST_PROP]?.rich_text || []).map((t) => t.plain_text).join('')
+        return raw ? JSON.parse(raw) : []
+      } catch { return [] }
+    })(),
   }
 }
 
@@ -130,6 +139,10 @@ function reminderToProperties(fields) {
   if (fields.notes    !== undefined) props.Notes    = { rich_text: textToRich(fields.notes) }
   if (fields.location !== undefined) props.Location = { rich_text: textToRich(fields.location) }
   if (fields.userId   !== undefined) props['User ID'] = { rich_text: textToRich(fields.userId || '') }
+
+  if (fields.checklist !== undefined) {
+    props[CHECKLIST_PROP] = { rich_text: textToRich(JSON.stringify(fields.checklist || [])) }
+  }
 
   if (ENGINE_KEYS.some((k) => k in fields)) {
     props[DISMISSAL_PROP] = { rich_text: textToRich(JSON.stringify({

@@ -54,17 +54,15 @@ export function InstallButton() {
       <button
         onClick={handleClick}
         title="Install app"
-        className={cn(
-          'grid h-9 w-9 place-items-center rounded-xl transition-colors ring-focus',
-          'bg-brand-600 text-white hover:bg-brand-500 shadow-sm'
-        )}
+        style={{ background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' }}
+        className="glass-sheen grid h-9 w-9 place-items-center rounded-xl text-white shadow-sm shadow-brand-600/30 transition-all ring-focus active:scale-95"
         aria-label="Install app"
       >
         <Download className="h-4 w-4" />
       </button>
 
       {showIOSGuide && (
-        <div className="absolute right-0 top-11 z-50 w-72 rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="surface-modal absolute right-0 top-11 z-50 w-72 rounded-2xl p-4">
           <div className="mb-3 flex items-start justify-between">
             <p className="text-sm font-semibold">Install Reminder</p>
             <button onClick={() => setShowIOSGuide(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">

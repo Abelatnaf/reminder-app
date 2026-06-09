@@ -2,15 +2,15 @@ import { cn } from '../../lib/cn.js'
 
 const VARIANTS = {
   primary:
-    'bg-brand-600 text-white shadow-sm hover:bg-brand-500 active:bg-brand-700 disabled:bg-brand-600/50',
+    'glass-sheen text-white shadow-md shadow-brand-600/30 hover:shadow-lg hover:shadow-brand-600/35 active:scale-[0.98] disabled:shadow-none disabled:opacity-60',
   subtle:
-    'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700',
+    'glass-pill text-zinc-800 dark:text-zinc-100',
   ghost:
-    'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white',
+    'text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/8 dark:hover:text-white',
   danger:
-    'bg-rose-600 text-white hover:bg-rose-500 active:bg-rose-700',
+    'bg-rose-600 text-white shadow-sm hover:bg-rose-500 active:bg-rose-700',
   outline:
-    'border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800',
+    'glass-pill text-zinc-700 dark:text-zinc-200',
 }
 
 const SIZES = {
@@ -19,12 +19,13 @@ const SIZES = {
   lg: 'h-11 px-5 text-base gap-2',
 }
 
-// Primary button primitive used across the app.
 export function Button({ variant = 'primary', size = 'md', className, children, ...props }) {
+  const isPrimary = variant === 'primary'
   return (
     <button
+      style={isPrimary ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
       className={cn(
-        'inline-flex items-center justify-center rounded-xl font-medium transition-colors ring-focus disabled:cursor-not-allowed disabled:opacity-70 select-none',
+        'inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 ring-focus disabled:cursor-not-allowed select-none',
         VARIANTS[variant],
         SIZES[size],
         className

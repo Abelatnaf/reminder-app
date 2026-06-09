@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Sparkles, Pencil, CalendarClock, Repeat, Flag, AlignLeft, Tag, MapPin } from 'lucide-react'
+import { X, Sparkles, Pencil, CalendarClock, Repeat, Flag, AlignLeft, Tag, MapPin, ListChecks, Plus, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { format } from 'date-fns'
 import { Button } from './ui/Button.jsx'
+import { DateTimePicker } from './ui/DateTimePicker.jsx'
 import { cn } from '../lib/cn.js'
-import { toLocalInput, fromLocalInput, PRIORITY, CATEGORIES } from '../lib/format.js'
+import { PRIORITY, CATEGORIES } from '../lib/format.js'
 
 const RECURRENCES = [
   { value: 'none',    label: 'Once'    },
@@ -30,7 +33,16 @@ const WDAY_MULTI = [
 const PRIORITIES = ['low', 'medium', 'high']
 const CATEGORY_LIST = Object.entries(CATEGORIES)
 
-const EMPTY = { title: '', datetime: null, recurrence: 'none', recurrenceDetail: '', priority: 'medium', notes: '', category: null, location: '' }
+const EMPTY = { title: '', datetime: null, recurrence: 'none', recurrenceDetail: '', priority: 'medium', notes: '', category: null, location: '', checklist: [] }
+
+function fmtDt(iso) {
+  if (!iso) return null
+  try { return format(new Date(iso), 'EEE, MMM d · h:mm a') } catch { return null }
+}
+
+function newStep() {
+  return { id: crypto.randomUUID(), text: '', done: false }
+}
 
 function preset(kind) {
   const d = new Date(); d.setSeconds(0, 0)
@@ -66,12 +78,14 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [builder, setBuilder] = useState({ mode: 'raw', raw: '' })
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
       const f = { ...EMPTY, ...(initial || {}) }
       setForm(f)
       setSaving(false)
+      setPickerOpen(false)
       setBuilder(f.recurrence === 'custom' ? parseDetail(f.recurrenceDetail) : { mode: 'raw', raw: '' })
     }
   }, [open, initial])
@@ -97,6 +111,7 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
         notes:           form.notes,
         category:        form.category || null,
         location:        form.location || '',
+        checklist:       (form.checklist || []).filter((s) => s.text.trim()),
       })
       onOpenChange(false)
     } catch { setSaving(false) }
@@ -109,7 +124,7 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-sm data-[state=open]:animate-overlayShow" />
         <Dialog.Content
-          className="surface fixed left-1/2 top-1/2 z-50 w-[min(36rem,calc(100vw-2rem))] max-h-[90vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 shadow-2xl shadow-zinc-950/20 data-[state=open]:animate-contentShow focus:outline-none"
+          className="surface-modal fixed left-1/2 top-1/2 z-50 w-[min(36rem,calc(100vw-2rem))] max-h-[90vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 rounded-3xl p-6 data-[state=open]:animate-contentShow focus:outline-none"
           aria-describedby={undefined}
         >
           <div className="mb-5 flex items-start justify-between">
@@ -139,7 +154,7 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               <label className="mb-1.5 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Title</label>
               <input autoFocus value={form.title} onChange={(e) => set({ title: e.target.value })}
                 placeholder="What do you need to remember?"
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 ring-focus dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 dark:text-zinc-100"
               />
             </div>
 
@@ -150,15 +165,16 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               </label>
               <div className="flex flex-wrap gap-1.5">
                 <button type="button" onClick={() => set({ category: null })}
-                  className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ring-focus',
+                  style={form.category === null ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
+                  className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-all ring-focus',
                     form.category === null
-                      ? 'bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                      ? 'glass-sheen text-white shadow-sm shadow-brand-600/30'
+                      : 'glass-pill text-zinc-600 dark:text-zinc-300'
                   )}>None</button>
                 {CATEGORY_LIST.map(([key, cat]) => (
                   <button key={key} type="button" onClick={() => set({ category: key })}
-                    className={cn('inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ring-focus',
-                      form.category === key ? cat.chip + ' ring-1' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                    className={cn('inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ring-focus',
+                      form.category === key ? cat.chip + ' ring-1' : 'glass-pill text-zinc-600 dark:text-zinc-300'
                     )}>
                     <span className={cn('h-1.5 w-1.5 rounded-full', cat.dot)} />
                     {cat.label}
@@ -169,23 +185,109 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
 
             {/* Date & time */}
             <div>
-              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              <label className="mb-2 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                 <CalendarClock className="h-3.5 w-3.5" /> When
               </label>
-              <div className="flex flex-wrap items-center gap-2">
-                <input type="datetime-local" value={toLocalInput(form.datetime)} onChange={(e) => set({ datetime: fromLocalInput(e.target.value) })}
-                  className="flex-1 rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 ring-focus dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 [color-scheme:light] dark:[color-scheme:dark]"
-                />
-                {form.datetime && <button type="button" onClick={() => set({ datetime: null })} className="text-xs text-zinc-500 underline-offset-2 hover:underline">Clear</button>}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[['today','Today 6pm'],['tomorrow','Tomorrow 9am'],['nextweek','Next week']].map(([kind, label]) => (
-                  <button key={kind} type="button" onClick={() => set({ datetime: preset(kind) })}
-                    className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-                    {label}
+
+              {/* If date is set — show a clean date+time card */}
+              {form.datetime ? (
+                <div
+                  className={cn(
+                    'flex items-center gap-4 rounded-2xl px-4 py-3 cursor-pointer transition-all',
+                    pickerOpen
+                      ? 'border border-brand-400/50 bg-brand-50/40 dark:bg-brand-500/10'
+                      : 'glass-pill'
+                  )}
+                  onClick={() => setPickerOpen((o) => !o)}
+                >
+                  {/* Date section */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl bg-brand-600/10 dark:bg-brand-500/15">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-brand-600 dark:text-brand-400 leading-none">
+                        {format(new Date(form.datetime), 'MMM')}
+                      </span>
+                      <span className="text-lg font-black leading-tight text-brand-700 dark:text-brand-300">
+                        {format(new Date(form.datetime), 'd')}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">
+                        {format(new Date(form.datetime), 'EEEE')}
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {format(new Date(form.datetime), 'MMMM d, yyyy')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-8 w-px bg-zinc-200/80 dark:bg-white/10 shrink-0" />
+
+                  {/* Time section */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Clock className="h-3.5 w-3.5 text-zinc-400" />
+                    <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
+                      {format(new Date(form.datetime), 'h:mm a')}
+                    </span>
+                  </div>
+
+                  {/* Clear */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); set({ datetime: null }); setPickerOpen(false) }}
+                    className="shrink-0 grid h-6 w-6 place-items-center rounded-full text-zinc-400 hover:bg-zinc-200/80 hover:text-zinc-600 dark:hover:bg-white/10 dark:hover:text-zinc-300 transition-colors"
+                    aria-label="Clear date"
+                  >
+                    <X className="h-3.5 w-3.5" />
                   </button>
-                ))}
-              </div>
+                </div>
+              ) : (
+                /* If no date — show 3 quick-picks + custom button */
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ['today',    'Today',     '6:00 PM'],
+                    ['tomorrow', 'Tomorrow',  '9:00 AM'],
+                    ['nextweek', 'Next week', '9:00 AM'],
+                  ].map(([kind, day, time]) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => { set({ datetime: preset(kind) }); setPickerOpen(true) }}
+                      className="glass-pill flex flex-col items-start gap-0.5 rounded-2xl px-3.5 py-2.5 text-left transition-all"
+                    >
+                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{day}</span>
+                      <span className="text-[11px] text-zinc-400">{time}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen((o) => !o)}
+                    className="flex flex-col items-start gap-0.5 rounded-2xl border border-dashed border-zinc-300/80 bg-transparent px-3.5 py-2.5 text-left transition-all hover:border-brand-400/50 hover:bg-brand-50/30 dark:border-white/12 dark:hover:border-brand-700/50"
+                  >
+                    <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Custom</span>
+                    <span className="text-[11px] text-zinc-400">Pick date & time</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Inline picker */}
+              <AnimatePresence initial={false}>
+                {pickerOpen && (
+                  <motion.div
+                    key="picker"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0, transition: { duration: 0.15 } }}
+                    transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    className="mt-3 overflow-hidden"
+                  >
+                    <DateTimePicker
+                      value={form.datetime}
+                      onChange={(v) => set({ datetime: v })}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Recurrence */}
@@ -196,8 +298,9 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               <div className="flex flex-wrap gap-1.5">
                 {RECURRENCES.map((r) => (
                   <button key={r.value} type="button" onClick={() => set({ recurrence: r.value })}
-                    className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ring-focus',
-                      form.recurrence === r.value ? 'bg-brand-600 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
+                    style={form.recurrence === r.value ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
+                    className={cn('rounded-lg px-3 py-1.5 text-xs font-medium transition-all ring-focus',
+                      form.recurrence === r.value ? 'glass-sheen text-white shadow-sm shadow-brand-600/30' : 'glass-pill text-zinc-600 dark:text-zinc-300'
                     )}>
                     {r.label}
                   </button>
@@ -282,7 +385,7 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
                   {builder.mode === 'raw' && (
                     <input value={form.recurrenceDetail} onChange={(e) => set({ recurrenceDetail: e.target.value })}
                       placeholder='e.g. WEEKLY:TU,TH or INTERVAL:2;UNIT:WEEK'
-                      className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 ring-focus dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className="glass-input w-full rounded-xl px-3.5 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 dark:text-zinc-100"
                     />
                   )}
 
@@ -301,8 +404,8 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               <div className="grid grid-cols-3 gap-1.5">
                 {PRIORITIES.map((p) => (
                   <button key={p} type="button" onClick={() => set({ priority: p })}
-                    className={cn('flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors ring-focus',
-                      form.priority === p ? 'border-transparent ' + PRIORITY[p].chip : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                    className={cn('flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all ring-focus',
+                      form.priority === p ? PRIORITY[p].chip + ' ring-1' : 'glass-pill text-zinc-500 dark:text-zinc-400'
                     )}>
                     <span className={cn('h-1.5 w-1.5 rounded-full', PRIORITY[p].dot)} />
                     {PRIORITY[p].label}
@@ -318,7 +421,7 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               </label>
               <input value={form.location} onChange={(e) => set({ location: e.target.value })}
                 placeholder="Address or place name…"
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 ring-focus dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 dark:text-zinc-100"
               />
             </div>
 
@@ -329,8 +432,49 @@ export function ReminderFormModal({ open, onOpenChange, mode = 'create', initial
               </label>
               <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })} rows={2}
                 placeholder="Anything else… Zoom/Meet/Teams links auto-detect a Join button."
-                className="w-full resize-none rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 ring-focus dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className="glass-input w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 dark:text-zinc-100"
               />
+            </div>
+
+            {/* Checklist */}
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <ListChecks className="h-3.5 w-3.5" /> Checklist <span className="text-zinc-400">(optional)</span>
+              </label>
+              <div className="space-y-1.5">
+                {(form.checklist || []).map((step, idx) => (
+                  <div key={step.id} className="flex items-center gap-2">
+                    <span className="w-4 shrink-0 text-right text-xs text-zinc-400">{idx + 1}.</span>
+                    <input
+                      value={step.text}
+                      onChange={(e) => set({ checklist: form.checklist.map((s) => s.id === step.id ? { ...s, text: e.target.value } : s) })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          set({ checklist: [...form.checklist, newStep()] })
+                        }
+                      }}
+                      placeholder={`Step ${idx + 1}`}
+                      className="glass-input flex-1 rounded-lg px-3 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 dark:text-zinc-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => set({ checklist: form.checklist.filter((s) => s.id !== step.id) })}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                      aria-label="Remove step"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => set({ checklist: [...(form.checklist || []), newStep()] })}
+                  className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add step
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-1">

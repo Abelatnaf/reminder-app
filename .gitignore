@@ -21,6 +21,12 @@ server/users.json
 *.log
 npm-debug.log*
 
+# Local screenshots & throwaway test scripts
+screenshots/
+screen*.png
+shot-*.png
+_*.mjs
+
 # OS
 .DS_Store
 Thumbs.db

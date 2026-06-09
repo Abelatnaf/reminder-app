@@ -71,11 +71,27 @@ export async function handleCallback(code, state) {
   return { userId, email: userInfo.email }
 }
 
-// { connected: bool, email: string|null }
+// { connected: bool, email: string|null, pushEnabled: bool }
 export function getStatus(userId) {
   const t = loadTokens()[userId]
-  if (!t) return { connected: false, email: null }
-  return { connected: true, email: t.email || null }
+  if (!t) return { connected: false, email: null, pushEnabled: false }
+  return { connected: true, email: t.email || null, pushEnabled: !!t.pushEnabled }
+}
+
+export function isConnected(userId) {
+  return !!loadTokens()[userId]
+}
+
+export function isPushEnabled(userId) {
+  return !!loadTokens()[userId]?.pushEnabled
+}
+
+export function setPushEnabled(userId, enabled) {
+  const all = loadTokens()
+  if (all[userId]) {
+    all[userId].pushEnabled = Boolean(enabled)
+    saveTokens(all)
+  }
 }
 
 // Build an authenticated Google Calendar client; saves refreshed tokens automatically.
