@@ -2,6 +2,7 @@ import './env.js' // MUST be first — loads DATABASE_URL before the Pool is bui
 import { betterAuth } from 'better-auth'
 import pg from 'pg'
 import { sendEmail, resetPasswordEmail } from './email.js'
+import { AUTH_SECRET } from './secret.js' // throws in prod if the secret is unset/default
 
 const { Pool } = pg
 
@@ -9,7 +10,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || `http://localhost:${process.env.PORT || 3001}`,
-  secret: process.env.BETTER_AUTH_SECRET || 'dev-secret-change-in-production',
+  secret: AUTH_SECRET,
   database: new Pool({ connectionString: process.env.DATABASE_URL }),
   emailAndPassword: {
     enabled: true,

@@ -24,19 +24,51 @@ const app = express()
 // Trust Railway's reverse proxy so rate-limit and IP detection work correctly
 app.set('trust proxy', 1)
 
+const isProd = process.env.NODE_ENV === 'production'
+
+// Content-Security-Policy. The app is same-origin (Express serves the PWA and the
+// API together in prod), styles are inline, the grain texture is a data: URI, and
+// the only external reference is a maps.google.com anchor (navigation, not a load).
 app.use(helmet({
-  contentSecurityPolicy: false, // relaxed for dev; tighten for prod
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      ...(isProd ? { upgradeInsecureRequests: [] } : {}),
+    },
+  },
 }))
 
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3001', process.env.APP_URL].filter(Boolean),
-  credentials: true,
-}))
+// CORS — only allow localhost outside production.
+const allowedOrigins = [
+  process.env.APP_URL,
+  process.env.FRONTEND_URL,
+  process.env.BETTER_AUTH_URL,
+  ...(process.env.RAILWAY_PUBLIC_DOMAIN ? [`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`] : []),
+  ...(isProd ? [] : ['http://localhost:5173', 'http://localhost:3001']),
+].filter(Boolean)
+app.use(cors({ origin: allowedOrigins, credentials: true }))
 
 // Rate limits
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false })
 const parseLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false })
+// Strict limiter for credential endpoints — blunts password brute-force. Scoped
+// to the sensitive actions so routine session checks aren't throttled; only
+// failed attempts count, so a legitimate login is never blocked.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, skipSuccessfulRequests: true })
 app.use('/api', apiLimiter)
+app.use(['/api/auth/sign-in', '/api/auth/sign-up', '/api/auth/forget-password', '/api/auth/reset-password'], authLimiter)
 
 // better-auth handles all /api/auth/* routes (sign-in, sign-up, sign-out, session, etc.)
 // Express 5 requires named wildcards — /api/auth/*path instead of /api/auth/*
@@ -187,7 +219,7 @@ app.get('/api/gcal/callback', asyncHandler(async (req, res) => {
 
 app.get('/api/gcal/status', asyncHandler(async (req, res) => {
   const userId = await getUid(req)
-  res.json({ ...gcal.getStatus(userId), configured: gcal.isConfigured() })
+  res.json({ ...gcal.getStatus(userId), configured: gcal.isConfigured(), redirectUri: gcal.getRedirectUri() })
 }))
 
 // Import upcoming Google Calendar events as reminders (skips duplicates by gcalEventId)
@@ -240,7 +272,10 @@ app.post('/api/push/test', asyncHandler(async (req, res) => {
 
 function escCsv(val) {
   if (val == null) return ''
-  const s = String(val)
+  let s = String(val)
+  // Neutralize spreadsheet formula injection: a leading = + - @ (or tab/CR) can
+  // execute as a formula when the file is opened in Excel/Sheets.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
 }
 
@@ -306,7 +341,9 @@ if (servePwa) {
 app.use((err, _req, res, _next) => {
   const status = err.status || (err instanceof AIError ? err.status : 500)
   if (status >= 500) console.error('[error]', err)
-  res.status(status || 500).json({ error: err.message || 'Something went wrong.' })
+  // Don't leak internal error details (DB/stack messages) to clients on 5xx.
+  const message = status >= 500 ? 'Something went wrong.' : (err.message || 'Request failed.')
+  res.status(status || 500).json({ error: message })
 })
 
 push.initPush()

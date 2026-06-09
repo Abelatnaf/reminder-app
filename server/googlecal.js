@@ -3,10 +3,11 @@ import { google } from 'googleapis'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import crypto from 'node:crypto'
+import { hmac, safeEqual, encrypt, decrypt } from './secret.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const TOKENS_PATH = path.join(__dirname, 'gcal-tokens.json')
+const STATE_TTL_MS = 10 * 60 * 1000 // OAuth state is valid for 10 minutes
 
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
@@ -19,43 +20,86 @@ export function isConfigured() {
 
 // ── Token persistence ─────────────────────────────────────────────────────────
 
+// Tokens are encrypted at rest (AES-256-GCM). Falls back to reading legacy
+// plaintext JSON so existing files keep working until the next write.
 function loadTokens() {
-  try { return JSON.parse(fs.readFileSync(TOKENS_PATH, 'utf8')) } catch { return {} }
+  let raw
+  try { raw = fs.readFileSync(TOKENS_PATH, 'utf8') } catch { return {} }
+  if (!raw.trim()) return {}
+  try {
+    if (raw.startsWith('v1.')) return JSON.parse(decrypt(raw))
+    return JSON.parse(raw) // legacy plaintext — migrated to ciphertext on next save
+  } catch {
+    return {}
+  }
 }
 
 function saveTokens(all) {
-  fs.writeFileSync(TOKENS_PATH, JSON.stringify(all, null, 2))
+  fs.writeFileSync(TOKENS_PATH, encrypt(JSON.stringify(all)), { mode: 0o600 })
+}
+
+// ── Signed OAuth state (CSRF / forgery protection) ────────────────────────────
+// State binds the flow to a userId and is HMAC-signed so the callback can't be
+// called with an attacker-chosen userId. Format: <payload>.<sig> (both base64url).
+function signState(userId) {
+  const payload = Buffer.from(JSON.stringify({ userId, ts: Date.now() })).toString('base64url')
+  return `${payload}.${hmac(payload)}`
+}
+
+function verifyState(state) {
+  const [payload, sig] = String(state).split('.')
+  if (!payload || !sig || !safeEqual(sig, hmac(payload))) {
+    const e = new Error('Invalid OAuth state'); e.status = 400; throw e
+  }
+  const { userId, ts } = JSON.parse(Buffer.from(payload, 'base64url').toString())
+  if (!userId || Date.now() - ts > STATE_TTL_MS) {
+    const e = new Error('Expired OAuth state'); e.status = 400; throw e
+  }
+  return userId
 }
 
 // ── OAuth2 client factory ─────────────────────────────────────────────────────
+
+// Resolve the OAuth callback URL. Prefer an explicit GOOGLE_REDIRECT_URI, else
+// derive it from the public deploy origin (APP_URL / Railway domain) so it isn't
+// silently stuck on localhost in production — the usual cause of redirect_uri_mismatch.
+// NOTE: whatever this resolves to must also be listed as an Authorized redirect URI
+// in the Google Cloud Console OAuth client.
+export function getRedirectUri() {
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI
+  // Prefer Railway's auto-set domain (always correct in prod) over APP_URL, which
+  // can be a stale localhost value copied from .env.example.
+  const base =
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
+    process.env.APP_URL ||
+    `http://localhost:${process.env.PORT || 3001}`
+  return `${base.replace(/\/$/, '')}/api/gcal/callback`
+}
 
 function createOAuth2Client() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/gcal/callback'
+    getRedirectUri()
   )
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-// Returns the Google consent URL. Encodes userId + nonce in state for CSRF protection.
+// Returns the Google consent URL. State is HMAC-signed so the callback can
+// trust the userId it carries without a session.
 export function getAuthUrl(userId) {
-  const state = Buffer.from(
-    JSON.stringify({ userId, nonce: crypto.randomBytes(8).toString('hex') })
-  ).toString('base64url')
-
   return createOAuth2Client().generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent', // force refresh_token every time
     scope: SCOPES,
-    state,
+    state: signState(userId),
   })
 }
 
 // Exchange the auth code from Google's callback. Saves tokens keyed by userId.
 export async function handleCallback(code, state) {
-  const { userId } = JSON.parse(Buffer.from(state, 'base64url').toString())
+  const userId = verifyState(state) // throws on tampered/expired state
   const oauth2Client = createOAuth2Client()
   const { tokens } = await oauth2Client.getToken(code)
   oauth2Client.setCredentials(tokens)

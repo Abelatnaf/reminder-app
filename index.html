@@ -26,18 +26,8 @@
 
     <title>Calendar</title>
 
-    <script>
-      // Apply the persisted (or system) theme before first paint to avoid a flash.
-      (function () {
-        try {
-          var saved = localStorage.getItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (saved === 'dark' || (!saved && prefersDark)) {
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Sets the theme class before paint (external so CSP can stay script-src 'self'). -->
+    <script src="/theme-init.js"></script>
   </head>
   <body class="h-full">
     <div id="root" class="h-full"></div>
