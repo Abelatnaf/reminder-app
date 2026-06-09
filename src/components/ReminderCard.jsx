@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Clock, Moon, Pencil, Trash2, Repeat, CalendarClock, Wand2, MapPin, Video, ListChecks } from 'lucide-react'
 import { Badge } from './ui/Badge.jsx'
 import { cn } from '../lib/cn.js'
+import { useGlassPointer } from '../hooks/useGlassPointer.js'
 import { formatDue, PRIORITY, RECURRENCE_LABEL, CATEGORIES } from '../lib/format.js'
 
 const MEET_PATTERNS = [
@@ -22,6 +23,14 @@ function detectMeetingUrl(text = '') {
 
 export function ReminderCard({ reminder, selected, onSelect, onToggle, onSnooze, onLater, onEdit, onDelete, onUpdateChecklist, suggestion, onReschedule }) {
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const glow = useGlassPointer()
+
+  // One-shot ripple: bump a key only on a real false→true check, so it fires on
+  // user action but never on initial mount of an already-done reminder.
+  const prevDone = useRef(reminder.done)
+  const rippleKey = useRef(0)
+  if (reminder.done && !prevDone.current) rippleKey.current += 1
+  prevDone.current = reminder.done
   const p   = PRIORITY[reminder.priority]   || PRIORITY.medium
   const cat = CATEGORIES[reminder.category] || null
   const due = formatDue(reminder.datetime)
@@ -54,8 +63,9 @@ export function ReminderCard({ reminder, selected, onSelect, onToggle, onSnooze,
       exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.15 } }}
       transition={{ type: 'spring', stiffness: 480, damping: 38 }}
       onMouseEnter={onSelect}
+      {...glow}
       className={cn(
-        'surface group relative overflow-hidden rounded-2xl transition-all duration-200',
+        'surface glass-glow group relative overflow-hidden rounded-2xl transition-all duration-200',
         selected
           ? 'shadow-md ring-2 ring-brand-500/30'
           : 'shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.10)]',
@@ -67,12 +77,13 @@ export function ReminderCard({ reminder, selected, onSelect, onToggle, onSnooze,
         <span className={cn('absolute inset-y-0 left-0 w-[3px]', stripColor)} />
 
         {/* Checkbox */}
-        <button
+        <motion.button
           onClick={() => onToggle()}
+          whileTap={{ scale: 0.8 }}
           aria-label={reminder.done ? 'Mark as not done' : 'Mark as done'}
           aria-pressed={reminder.done}
           className={cn(
-            'mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-all duration-150 ring-focus',
+            'relative mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-colors duration-150 ring-focus',
             reminder.done
               ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
               : 'border-zinc-300 hover:border-brand-500 hover:shadow-sm dark:border-zinc-600 dark:hover:border-brand-400'
@@ -81,7 +92,20 @@ export function ReminderCard({ reminder, selected, onSelect, onToggle, onSnooze,
           <motion.span initial={false} animate={{ scale: reminder.done ? 1 : 0 }} transition={{ type: 'spring', stiffness: 700, damping: 30 }}>
             <Check className="h-3 w-3" strokeWidth={3.5} />
           </motion.span>
-        </button>
+          {/* Expanding ring on check */}
+          <AnimatePresence initial={false}>
+            {reminder.done && (
+              <motion.span
+                key={rippleKey.current}
+                initial={{ scale: 0.6, opacity: 0.55 }}
+                animate={{ scale: 2.3, opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-emerald-500"
+              />
+            )}
+          </AnimatePresence>
+        </motion.button>
 
         {/* Body */}
         <div className="min-w-0 flex-1">

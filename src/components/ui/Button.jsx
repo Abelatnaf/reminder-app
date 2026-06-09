@@ -1,8 +1,9 @@
 import { cn } from '../../lib/cn.js'
+import { useGlassPointer } from '../../hooks/useGlassPointer.js'
 
 const VARIANTS = {
   primary:
-    'glass-sheen text-white shadow-md shadow-brand-600/30 hover:shadow-lg hover:shadow-brand-600/35 active:scale-[0.98] disabled:shadow-none disabled:opacity-60',
+    'glass-sheen glass-glow text-white shadow-md shadow-brand-600/30 hover:shadow-lg hover:shadow-brand-600/35 active:scale-[0.98] disabled:shadow-none disabled:opacity-60',
   subtle:
     'glass-pill text-zinc-800 dark:text-zinc-100',
   ghost:
@@ -21,8 +22,10 @@ const SIZES = {
 
 export function Button({ variant = 'primary', size = 'md', className, children, ...props }) {
   const isPrimary = variant === 'primary'
+  const glow = useGlassPointer()
   return (
     <button
+      {...(isPrimary ? glow : {})}
       style={isPrimary ? { background: 'linear-gradient(135deg, #c01a10 0%, #e62216 40%, #ff4b3a 100%)' } : undefined}
       className={cn(
         'inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 ring-focus disabled:cursor-not-allowed select-none',

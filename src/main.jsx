@@ -7,6 +7,7 @@ import './index.css'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster, toast } from 'sonner'
+import { MotionConfig } from 'framer-motion'
 import App from './App.jsx'
 
 // Register our service worker (sw.js in /public)
@@ -35,6 +36,7 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
+    <MotionConfig reducedMotion="user">
     <App />
     <Toaster
       position="bottom-right"
@@ -50,5 +52,6 @@ createRoot(document.getElementById('root')).render(
         },
       }}
     />
+    </MotionConfig>
   </React.StrictMode>
 )

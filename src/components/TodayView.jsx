@@ -1,16 +1,40 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { isPast, isToday, format } from 'date-fns'
 import { AlertTriangle, Clock4, Inbox, CheckCircle2, Sparkles } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, animate, useReducedMotion } from 'framer-motion'
 import { ReminderCard } from './ReminderCard.jsx'
+import { useGlassPointer } from '../hooks/useGlassPointer.js'
+import { fireCelebration } from '../lib/celebrate.js'
 import { cn } from '../lib/cn.js'
+
+// Animated count-up for the hero "done" number (respects reduced-motion).
+function CountUp({ value }) {
+  const reduce = useReducedMotion()
+  const mv = useMotionValue(value)
+  const rounded = useTransform(mv, (v) => Math.round(v))
+  useEffect(() => {
+    if (reduce) { mv.set(value); return }
+    const controls = animate(mv, value, { duration: 0.9, ease: [0.25, 0.46, 0.45, 0.94] })
+    return () => controls.stop()
+  }, [value, reduce, mv])
+  return <motion.span>{rounded}</motion.span>
+}
+
+// Staggered entrance for the Today sections.
+const listContainer = { show: { transition: { staggerChildren: 0.07, delayChildren: 0.03 } } }
+const listItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 380, damping: 32 } },
+}
 
 // ── Gradient hero card ─────────────────────────────────────────────────────────
 function HeroCard({ now, doneToday, total, allDone, isEmpty }) {
   const pct = total > 0 ? Math.round((doneToday / total) * 100) : 0
+  const glow = useGlassPointer()
 
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] text-white"
+    <div className="glass-glow glow-brand relative overflow-hidden rounded-[1.75rem] text-white"
+      {...glow}
       style={{ background: 'linear-gradient(135deg, #c01a10 0%, #e62216 35%, #ff4b3a 70%, #ff7043 100%)' }}>
 
       {/* Ambient glow circles */}
@@ -33,7 +57,7 @@ function HeroCard({ now, doneToday, total, allDone, isEmpty }) {
           {total > 0 && (
             <div className="mt-1 text-right">
               <p className="text-[2.25rem] font-black tabular-nums leading-none">
-                {doneToday}
+                <CountUp value={doneToday} />
                 <span className="text-lg font-semibold text-white/50">/{total}</span>
               </p>
               <p className="mt-0.5 text-[11px] font-semibold text-white/55">
@@ -129,22 +153,30 @@ export function TodayView({ reminders, cardProps }) {
   const allDone = total > 0 && doneToday.length === total
   const isEmpty = total === 0 && inbox.length === 0
   const now     = new Date()
+  const reduce  = useReducedMotion()
+
+  // Fire confetti once when the day flips to fully done (not on every re-render).
+  useEffect(() => {
+    if (allDone && !reduce) fireCelebration()
+  }, [allDone, reduce])
 
   return (
-    <div className="space-y-6">
+    <motion.div className="space-y-6" variants={listContainer} initial="hidden" animate="show">
       {/* Hero */}
-      <HeroCard
-        now={now}
-        doneToday={doneToday.length}
-        total={total}
-        allDone={allDone}
-        isEmpty={isEmpty}
-      />
+      <motion.div variants={listItem}>
+        <HeroCard
+          now={now}
+          doneToday={doneToday.length}
+          total={total}
+          allDone={allDone}
+          isEmpty={isEmpty}
+        />
+      </motion.div>
 
       {/* All-done celebration below hero */}
       {allDone && inbox.length === 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          variants={listItem}
           className="flex flex-col items-center gap-2 rounded-2xl border border-emerald-200/50 bg-emerald-50/60 py-8 text-center backdrop-blur-sm dark:border-emerald-500/20 dark:bg-emerald-500/8"
         >
           <CheckCircle2 className="h-9 w-9 text-emerald-500" strokeWidth={1.5} />
@@ -156,36 +188,42 @@ export function TodayView({ reminders, cardProps }) {
 
       {/* Overdue */}
       {overdue.length > 0 && (
-        <Section icon={AlertTriangle} label="Overdue" count={overdue.length} variant="overdue">
-          {overdue.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
-        </Section>
+        <motion.div variants={listItem}>
+          <Section icon={AlertTriangle} label="Overdue" count={overdue.length} variant="overdue">
+            {overdue.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
+          </Section>
+        </motion.div>
       )}
 
       {/* Due today */}
       {dueToday.length > 0 && (
-        <Section icon={Clock4} label="Today" count={dueToday.length} variant="today">
-          {dueToday.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
-        </Section>
+        <motion.div variants={listItem}>
+          <Section icon={Clock4} label="Today" count={dueToday.length} variant="today">
+            {dueToday.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
+          </Section>
+        </motion.div>
       )}
 
       {/* Inbox */}
       {inbox.length > 0 && (
-        <Section icon={Inbox} label="Inbox" count={inbox.length} variant="inbox">
-          {inbox.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
-        </Section>
+        <motion.div variants={listItem}>
+          <Section icon={Inbox} label="Inbox" count={inbox.length} variant="inbox">
+            {inbox.map((r) => <ReminderCard key={r.id} {...cardProps(r)} />)}
+          </Section>
+        </motion.div>
       )}
 
       {/* Truly empty — hero handles the messaging, just show icon below */}
       {isEmpty && !allDone && (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
+        <motion.div variants={listItem} className="flex flex-col items-center gap-3 py-12 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/70 shadow-sm backdrop-blur-sm dark:bg-white/8">
             <Sparkles className="h-5 w-5 text-zinc-400" />
           </div>
           <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
             Use the input above to add your first reminder
           </p>
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   )
 }

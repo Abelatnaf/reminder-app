@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 import { initOfflineSync } from './lib/offlineQueue.js'
 import { Info, X } from 'lucide-react'
 import { useSession } from './lib/auth.js'
@@ -412,6 +413,10 @@ function AppShell() {
 
   return (
     <div className="mx-auto min-h-full w-full max-w-4xl">
+      {/* Living ambient background + film grain */}
+      <div className="ambient" />
+      <div className="grain" />
+
       {/* ── Sticky liquid-glass header ── */}
       <div className="glass-bar sticky top-0 z-40 -mx-4 px-4 pt-4 pb-3 sm:-mx-6 sm:px-6 sm:pt-6">
         <Header
@@ -460,25 +465,35 @@ function AppShell() {
         </div>
 
         <main className="mt-6">
-          {view === 'today' && (
-            <TodayView reminders={calendarItems} cardProps={cardProps} />
-          )}
-          {view === 'month' && (
-            <CalendarMonth reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
-          )}
-          {view === 'day' && (
-            <CalendarDay reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
-          )}
-          {view === 'list' && (
-            <ReminderList
-              visible={listVisible}
-              loading={loading}
-              counts={counts}
-              filter={{ query, onQuery: setQuery, status, onStatus: setStatus, sort, onSort: setSort }}
-              isFiltered={Boolean(query.trim()) || status !== 'active' || Boolean(categoryFilter)}
-              cardProps={cardProps}
-            />
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={view}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              {view === 'today' && (
+                <TodayView reminders={calendarItems} cardProps={cardProps} />
+              )}
+              {view === 'month' && (
+                <CalendarMonth reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
+              )}
+              {view === 'day' && (
+                <CalendarDay reminders={calendarItems} onQuickAdd={onQuickAdd} cardProps={cardProps} />
+              )}
+              {view === 'list' && (
+                <ReminderList
+                  visible={listVisible}
+                  loading={loading}
+                  counts={counts}
+                  filter={{ query, onQuery: setQuery, status, onStatus: setStatus, sort, onSort: setSort }}
+                  isFiltered={Boolean(query.trim()) || status !== 'active' || Boolean(categoryFilter)}
+                  cardProps={cardProps}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

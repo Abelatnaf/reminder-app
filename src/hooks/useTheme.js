@@ -17,7 +17,25 @@ export function useTheme() {
     }
   }, [theme])
 
-  const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
+  // Optional pointer event lets the View Transition reveal originate from the
+  // toggle button. Falls back to an instant theme swap when the API or
+  // reduced-motion preference rules out the animated wipe.
+  const toggle = useCallback((e) => {
+    const flip = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+
+    const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (!document.startViewTransition || prefersReduced) {
+      flip()
+      return
+    }
+
+    const root = document.documentElement
+    const x = e?.clientX ?? window.innerWidth - 40
+    const y = e?.clientY ?? 24
+    root.style.setProperty('--vt-x', `${(x / window.innerWidth) * 100}%`)
+    root.style.setProperty('--vt-y', `${(y / window.innerHeight) * 100}%`)
+    document.startViewTransition(flip)
+  }, [])
 
   return { theme, toggle }
 }
