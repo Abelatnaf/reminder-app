@@ -27,5 +27,8 @@ export const auth = betterAuth({
     'http://localhost:3001',
     process.env.APP_URL,
     process.env.FRONTEND_URL,
+    process.env.BETTER_AUTH_URL,
+    // Accept any Railway subdomain automatically
+    ...(process.env.RAILWAY_PUBLIC_DOMAIN ? [`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`] : []),
   ].filter(Boolean),
 })
