@@ -119,7 +119,8 @@ export async function create(fields, userId = '__local__') {
   await writeSnapshot()
 
   // Fire-and-forget: push to Google Calendar if connected and push is enabled
-  if (created.datetime && gcal.isConfigured() && gcal.isConnected(userId) && gcal.isPushEnabled(userId)) {
+  // (isPushEnabled implies connected — the flag lives on the stored token record)
+  if (created.datetime && gcal.isConfigured() && await gcal.isPushEnabled(userId)) {
     gcal.pushToGoogle(userId, created)
       .then((eventId) => {
         if (!eventId) return
@@ -145,7 +146,7 @@ export async function update(id, fields, userId = '__local__') {
   const updated = await writePatch(existing, patch, userId)
 
   // Fire-and-forget: sync update to Google Calendar if connected and push is enabled
-  if (updated.datetime && gcal.isConfigured() && gcal.isConnected(userId) && gcal.isPushEnabled(userId)) {
+  if (updated.datetime && gcal.isConfigured() && await gcal.isPushEnabled(userId)) {
     gcal.pushToGoogle(userId, updated)
       .then((eventId) => {
         // Only write back eventId if the reminder didn't have one yet (first push)

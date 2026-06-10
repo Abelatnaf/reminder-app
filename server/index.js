@@ -219,7 +219,7 @@ app.get('/api/gcal/callback', asyncHandler(async (req, res) => {
 
 app.get('/api/gcal/status', asyncHandler(async (req, res) => {
   const userId = await getUid(req)
-  res.json({ ...gcal.getStatus(userId), configured: gcal.isConfigured(), redirectUri: gcal.getRedirectUri() })
+  res.json({ ...(await gcal.getStatus(userId)), configured: gcal.isConfigured(), redirectUri: gcal.getRedirectUri() })
 }))
 
 // Import upcoming Google Calendar events as reminders (skips duplicates by gcalEventId)
@@ -245,7 +245,7 @@ app.delete('/api/gcal/disconnect', asyncHandler(async (req, res) => {
 app.put('/api/gcal/settings', asyncHandler(async (req, res) => {
   const userId = await getUid(req)
   const { pushEnabled } = req.body || {}
-  gcal.setPushEnabled(userId, !!pushEnabled)
+  await gcal.setPushEnabled(userId, !!pushEnabled)
   res.json({ ok: true, pushEnabled: !!pushEnabled })
 }))
 
@@ -347,6 +347,7 @@ app.use((err, _req, res, _next) => {
 })
 
 push.initPush()
+gcal.init().catch((err) => console.error('[gcal init] failed:', err.message))
 store.init().catch((err) => console.error('[init] failed:', err)).finally(() => {
   app.listen(config.port, '0.0.0.0', () => {
     console.log(`\n  Reminder server → http://localhost:${config.port}`)

@@ -4,9 +4,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { hmac, safeEqual, encrypt, decrypt } from './secret.js'
+import { query, ensureGcalTable } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const TOKENS_PATH = path.join(__dirname, 'gcal-tokens.json')
+const LEGACY_TOKENS_PATH = path.join(__dirname, 'gcal-tokens.json')
 const STATE_TTL_MS = 10 * 60 * 1000 // OAuth state is valid for 10 minutes
 
 const SCOPES = [
@@ -19,23 +20,56 @@ export function isConfigured() {
 }
 
 // ── Token persistence ─────────────────────────────────────────────────────────
+// Tokens live in Postgres (gcal_tokens table) so they survive redeploys on
+// Railway's ephemeral filesystem. Still encrypted at rest (AES-256-GCM).
 
-// Tokens are encrypted at rest (AES-256-GCM). Falls back to reading legacy
-// plaintext JSON so existing files keep working until the next write.
-function loadTokens() {
-  let raw
-  try { raw = fs.readFileSync(TOKENS_PATH, 'utf8') } catch { return {} }
-  if (!raw.trim()) return {}
+// Returns the user's token object, or null if not connected. A row that no
+// longer decrypts (BETTER_AUTH_SECRET rotated) is treated as disconnected.
+async function loadUserTokens(userId) {
+  const { rows } = await query('SELECT tokens_enc FROM gcal_tokens WHERE user_id = $1', [userId])
+  if (!rows.length) return null
   try {
-    if (raw.startsWith('v1.')) return JSON.parse(decrypt(raw))
-    return JSON.parse(raw) // legacy plaintext — migrated to ciphertext on next save
+    return JSON.parse(decrypt(rows[0].tokens_enc))
   } catch {
-    return {}
+    return null
   }
 }
 
-function saveTokens(all) {
-  fs.writeFileSync(TOKENS_PATH, encrypt(JSON.stringify(all)), { mode: 0o600 })
+async function saveUserTokens(userId, tokens) {
+  await query(
+    `INSERT INTO gcal_tokens (user_id, tokens_enc, updated_at) VALUES ($1, $2, NOW())
+     ON CONFLICT (user_id) DO UPDATE SET tokens_enc = EXCLUDED.tokens_enc, updated_at = NOW()`,
+    [userId, encrypt(JSON.stringify(tokens))]
+  )
+}
+
+async function deleteUserTokens(userId) {
+  await query('DELETE FROM gcal_tokens WHERE user_id = $1', [userId])
+}
+
+// Call once at server startup: creates the table and imports any tokens from
+// the legacy JSON file (pre-Postgres storage), then renames the file so the
+// import only runs once.
+export async function init() {
+  await ensureGcalTable()
+  await migrateLegacyFile()
+}
+
+async function migrateLegacyFile() {
+  let raw
+  try { raw = fs.readFileSync(LEGACY_TOKENS_PATH, 'utf8') } catch { return }
+  if (!raw.trim()) return
+  try {
+    const all = JSON.parse(raw.startsWith('v1.') ? decrypt(raw) : raw)
+    for (const [userId, tokens] of Object.entries(all)) {
+      const existing = await loadUserTokens(userId)
+      if (!existing) await saveUserTokens(userId, tokens)
+    }
+    fs.renameSync(LEGACY_TOKENS_PATH, `${LEGACY_TOKENS_PATH}.migrated`)
+    console.log(`[gcal] migrated ${Object.keys(all).length} token record(s) from JSON file to Postgres`)
+  } catch (err) {
+    console.warn('[gcal] legacy token file migration failed:', err.message)
+  }
 }
 
 // ── Signed OAuth state (CSRF / forgery protection) ────────────────────────────
@@ -108,40 +142,37 @@ export async function handleCallback(code, state) {
   const oauthInfo = google.oauth2({ version: 'v2', auth: oauth2Client })
   const { data: userInfo } = await oauthInfo.userinfo.get()
 
-  const all = loadTokens()
-  all[userId] = { ...tokens, email: userInfo.email }
-  saveTokens(all)
+  await saveUserTokens(userId, { ...tokens, email: userInfo.email })
 
   return { userId, email: userInfo.email }
 }
 
 // { connected: bool, email: string|null, pushEnabled: bool }
-export function getStatus(userId) {
-  const t = loadTokens()[userId]
+export async function getStatus(userId) {
+  const t = await loadUserTokens(userId)
   if (!t) return { connected: false, email: null, pushEnabled: false }
   return { connected: true, email: t.email || null, pushEnabled: !!t.pushEnabled }
 }
 
-export function isConnected(userId) {
-  return !!loadTokens()[userId]
+export async function isConnected(userId) {
+  return !!(await loadUserTokens(userId))
 }
 
-export function isPushEnabled(userId) {
-  return !!loadTokens()[userId]?.pushEnabled
+export async function isPushEnabled(userId) {
+  return !!(await loadUserTokens(userId))?.pushEnabled
 }
 
-export function setPushEnabled(userId, enabled) {
-  const all = loadTokens()
-  if (all[userId]) {
-    all[userId].pushEnabled = Boolean(enabled)
-    saveTokens(all)
+export async function setPushEnabled(userId, enabled) {
+  const tokens = await loadUserTokens(userId)
+  if (tokens) {
+    tokens.pushEnabled = Boolean(enabled)
+    await saveUserTokens(userId, tokens)
   }
 }
 
 // Build an authenticated Google Calendar client; saves refreshed tokens automatically.
 async function getCalendarClient(userId) {
-  const all = loadTokens()
-  const tokens = all[userId]
+  const tokens = await loadUserTokens(userId)
   if (!tokens) {
     const e = new Error('Google Calendar not connected')
     e.status = 400
@@ -152,9 +183,9 @@ async function getCalendarClient(userId) {
   oauth2Client.setCredentials(tokens)
 
   oauth2Client.on('tokens', (newTokens) => {
-    const current = loadTokens()
-    current[userId] = { ...current[userId], ...newTokens }
-    saveTokens(current)
+    loadUserTokens(userId)
+      .then((current) => saveUserTokens(userId, { ...current, ...newTokens }))
+      .catch((err) => console.warn('[gcal] failed to persist refreshed tokens:', err.message))
   })
 
   return google.calendar({ version: 'v3', auth: oauth2Client })
@@ -205,15 +236,13 @@ export async function pushToGoogle(userId, reminder) {
 
 // Revoke tokens and remove them from storage.
 export async function disconnect(userId) {
-  const all = loadTokens()
-  const tokens = all[userId]
+  const tokens = await loadUserTokens(userId)
   if (tokens?.access_token) {
     try {
       await createOAuth2Client().revokeToken(tokens.access_token)
     } catch { /* already expired or revoked */ }
   }
-  delete all[userId]
-  saveTokens(all)
+  await deleteUserTokens(userId)
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
